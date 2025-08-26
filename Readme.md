@@ -30,3 +30,94 @@ epl-prediction-mvp/
 ├── requirements.txt         # Dependencies
 ├── docker-compose.yml       # Container orchestration
 └── README.md                # Project documentation
+
+⚙️ Installation
+1. Clone Repository
+git clone https://github.com/yourusername/epl-prediction-mvp.git
+cd epl-prediction-mvp
+
+2. Setup Environment
+python3 -m venv venv
+source venv/bin/activate   # On Linux/Mac
+venv\Scripts\activate      # On Windows
+
+pip install -r requirements.txt
+
+3. Run Services (Local)
+
+Run FastAPI API:
+
+uvicorn api:app --reload
+
+
+Run Streamlit Dashboard:
+
+streamlit run dashboard.py
+
+4. Run with Docker
+docker-compose up --build
+
+🔮 Usage
+API
+
+Predictions available at:
+
+GET http://localhost:8000/predictions
+
+Dashboard
+
+Open in browser:
+
+http://localhost:8501
+
+
+You’ll see:
+
+📈 Top 10 predicted players for next week
+
+🔍 Filters (position, team, budget)
+
+⚽ Fixture difficulty
+
+📊 Data Source
+
+Fantasy Premier League API:
+https://fantasy.premierleague.com/api/bootstrap-static/
+
+🚀 Roadmap
+
+ Real-time data fetcher
+
+ Rule-based baseline predictor
+
+ ML model refinement (XGBoost + time-series)
+
+ Player injury/rotation news integration
+
+ Deployment on AWS/GCP
+
+ Mobile app version
+
+🛠️ Tech Stack
+
+Python 3.10+
+
+FastAPI – backend API
+
+Streamlit – dashboard
+
+Scikit-learn / XGBoost – ML predictions
+
+PostgreSQL / SQLite – database
+
+Docker & Docker Compose – deployment
+
+👨‍💻 Contributors
+
+Built by Trix
+
+⚠️ Disclaimer
+
+This project is for educational and research purposes only.
+It is not affiliated with the Premier League or Fantasy Premier League.
+Predictions are estimates and not guarantees of actual player performance.
