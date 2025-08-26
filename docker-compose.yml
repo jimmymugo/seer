@@ -1,0 +1,71 @@
+services:
+  # Database service (SQLite for MVP, can be replaced with PostgreSQL)
+  db:
+    image: alpine:latest
+    volumes:
+      - ./data:/app/data
+    command: >
+      sh -c "
+        apk add --no-cache sqlite &&
+        mkdir -p /app/data &&
+        touch /app/data/epl_data.db &&
+        tail -f /dev/null
+      "
+    networks:
+      - epl-network
+
+  # FastAPI backend service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///data/epl_data.db
+    depends_on:
+      - db
+    networks:
+      - epl-network
+    command: python api.py
+
+  # Streamlit dashboard service
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///data/epl_data.db
+    depends_on:
+      - api
+    networks:
+      - epl-network
+    command: streamlit run dashboard.py --server.port=8501 --server.address=0.0.0.0
+
+  # Data collection service (runs periodically)
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///data/epl_data.db
+    depends_on:
+      - db
+    networks:
+      - epl-network
+    command: python main.py --scheduled
+
+networks:
+  epl-network:
+    driver: bridge
+
+volumes:
+  data:
