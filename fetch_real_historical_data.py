@@ -1,79 +1,84 @@
 #!/usr/bin/env python3
 """
-Generate real historical data using FPL API
+Fetch real historical FPL data from past gameweeks
 """
 
 import sqlite3
 import pandas as pd
 import numpy as np
 import requests
+import time
 from datetime import datetime
 
-def fetch_fpl_data():
-    """Fetch current FPL data"""
+def fetch_fpl_bootstrap_data():
+    """Fetch current FPL bootstrap data"""
     try:
         response = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/")
         if response.status_code != 200:
-            print(f"❌ Failed to fetch FPL data: {response.status_code}")
+            print(f"❌ Failed to fetch FPL bootstrap data: {response.status_code}")
             return None
         
         data = response.json()
         return data
     except Exception as e:
-        print(f"❌ Error fetching FPL data: {e}")
+        print(f"❌ Error fetching FPL bootstrap data: {e}")
         return None
 
-def calculate_fpl_points(stats, position_type):
-    """Calculate FPL points based on position and stats"""
-    points = 0
-    
-    # Minutes played points
-    minutes = stats.get('minutes', 0)
-    if minutes >= 60:
-        points += 2
-    elif minutes > 0:
-        points += 1
-    
-    # Position-specific points
-    if position_type == 1:  # Goalkeeper
-        points += stats.get('saves', 0) * 0.1
-        points += stats.get('clean_sheets', 0) * 4
-        points -= stats.get('goals_conceded', 0) * 0.5
-        points -= stats.get('yellow_cards', 0) * 1
-        points -= stats.get('red_cards', 0) * 3
-        points -= stats.get('own_goals', 0) * 2
-        points -= stats.get('penalties_missed', 0) * 2
+def fetch_fpl_gameweek_data(gameweek):
+    """Fetch FPL data for a specific gameweek"""
+    try:
+        url = f"https://fantasy.premierleague.com/api/event/{gameweek}/live/"
+        response = requests.get(url)
         
-    elif position_type == 2:  # Defender
-        points += stats.get('goals_scored', 0) * 6
-        points += stats.get('assists', 0) * 3
-        points += stats.get('clean_sheets', 0) * 4
-        points -= stats.get('goals_conceded', 0) * 0.5
-        points -= stats.get('yellow_cards', 0) * 1
-        points -= stats.get('red_cards', 0) * 3
-        points -= stats.get('own_goals', 0) * 2
+        if response.status_code != 200:
+            print(f"❌ Failed to fetch GW{gameweek} data: {response.status_code}")
+            return None
         
-    elif position_type == 3:  # Midfielder
-        points += stats.get('goals_scored', 0) * 5
-        points += stats.get('assists', 0) * 3
-        points += stats.get('clean_sheets', 0) * 1
-        points -= stats.get('yellow_cards', 0) * 1
-        points -= stats.get('red_cards', 0) * 3
-        points -= stats.get('own_goals', 0) * 2
-        points -= stats.get('penalties_missed', 0) * 2
+        data = response.json()
+        return data
+    except Exception as e:
+        print(f"❌ Error fetching GW{gameweek} data: {e}")
+        return None
+
+def fetch_fpl_player_history(player_id):
+    """Fetch historical data for a specific player"""
+    try:
+        url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
+        response = requests.get(url)
         
-    elif position_type == 4:  # Forward
-        points += stats.get('goals_scored', 0) * 4
-        points += stats.get('assists', 0) * 3
-        points -= stats.get('yellow_cards', 0) * 1
-        points -= stats.get('red_cards', 0) * 3
-        points -= stats.get('own_goals', 0) * 2
-        points -= stats.get('penalties_missed', 0) * 2
+        if response.status_code != 200:
+            print(f"❌ Failed to fetch player {player_id} history: {response.status_code}")
+            return None
+        
+        data = response.json()
+        return data
+    except Exception as e:
+        print(f"❌ Error fetching player {player_id} history: {e}")
+        return None
+
+def calculate_fpl_points_from_history(history_data, gameweek):
+    """Calculate FPL points from historical data for a specific gameweek"""
+    if not history_data or 'history' not in history_data:
+        return None
     
-    # Bonus points
-    points += stats.get('bonus', 0)
+    for match in history_data['history']:
+        if match.get('round') == gameweek:
+            return {
+                'points': match.get('total_points', 0),
+                'minutes': match.get('minutes', 0),
+                'goals_scored': match.get('goals_scored', 0),
+                'assists': match.get('assists', 0),
+                'clean_sheets': match.get('clean_sheets', 0),
+                'bonus': match.get('bonus', 0),
+                'yellow_cards': match.get('yellow_cards', 0),
+                'red_cards': match.get('red_cards', 0),
+                'saves': match.get('saves', 0),
+                'goals_conceded': match.get('goals_conceded', 0),
+                'own_goals': match.get('own_goals', 0),
+                'penalties_missed': match.get('penalties_missed', 0)
+            }
     
-    return max(0, points)
+    return None
 
 def get_position_name(position_type):
     """Convert position type to name"""
@@ -87,17 +92,16 @@ def get_team_name(team_id, teams_data):
             return team['name']
     return 'Unknown'
 
-def generate_real_historical_data():
-    """Generate real historical data using FPL API"""
-    print("🔄 Fetching FPL data...")
+def fetch_real_historical_data():
+    """Fetch real historical data from FPL API for past gameweeks"""
+    print("🔄 Fetching FPL bootstrap data...")
     
-    # Fetch FPL data
-    fpl_data = fetch_fpl_data()
+    # Fetch current FPL data
+    fpl_data = fetch_fpl_bootstrap_data()
     if not fpl_data:
-        print("❌ Failed to fetch FPL data")
+        print("❌ Failed to fetch FPL bootstrap data")
         return
     
-    # Get players and teams
     players = fpl_data.get('elements', [])
     teams = fpl_data.get('teams', [])
     
@@ -118,15 +122,21 @@ def generate_real_historical_data():
     
     print(f"✅ Loaded {len(predictions_df)} predictions")
     
-    # Fetch real historical data for past gameweeks (GW1 to current GW)
+    # Fetch data for past gameweeks (GW1 to current GW)
     current_gameweek = 20  # Adjust based on current season
     successful_gameweeks = []
     
     for gw in range(1, current_gameweek + 1):
         print(f"📊 Fetching real data for Gameweek {gw}...")
         
+        # Fetch gameweek data
+        gw_data = fetch_fpl_gameweek_data(gw)
+        if not gw_data:
+            print(f"⚠️ No data available for GW{gw}, skipping...")
+            continue
+        
         # Create best 11 team using real historical data
-        best11_data = create_real_best11_team(players, teams, predictions_df, gw)
+        best11_data = create_real_best11_from_history(players, teams, predictions_df, gw)
         if best11_data:
             store_real_best11_data(gw, best11_data)
             calculate_role_metrics(gw, best11_data)
@@ -134,11 +144,14 @@ def generate_real_historical_data():
             print(f"✅ Successfully processed GW{gw}")
         else:
             print(f"⚠️ Could not create best 11 for GW{gw}")
+        
+        # Rate limiting to avoid API issues
+        time.sleep(1)
     
-    print(f"✅ Real historical data generation completed! Processed {len(successful_gameweeks)} gameweeks: {successful_gameweeks}")
+    print(f"✅ Real historical data fetch completed! Processed {len(successful_gameweeks)} gameweeks: {successful_gameweeks}")
 
-def create_real_best11_team(players, teams, predictions_df, gameweek):
-    """Create a realistic best 11 team using real FPL data"""
+def create_real_best11_from_history(players, teams, predictions_df, gameweek):
+    """Create best 11 team using real historical FPL data"""
     try:
         # Use different formations and budgets for variety
         formations = ["4-4-2", "4-3-3", "3-5-2", "4-5-1"]
@@ -495,44 +508,6 @@ def find_fpl_player_by_name(players, player_name):
     
     return None
 
-def fetch_fpl_player_history(player_id):
-    """Fetch historical data for a specific player"""
-    try:
-        url = f"https://fantasy.premierleague.com/api/element-summary/{player_id}/"
-        response = requests.get(url)
-        
-        if response.status_code != 200:
-            return None
-        
-        data = response.json()
-        return data
-    except Exception as e:
-        return None
-
-def calculate_fpl_points_from_history(history_data, gameweek):
-    """Calculate FPL points from historical data for a specific gameweek"""
-    if not history_data or 'history' not in history_data:
-        return None
-    
-    for match in history_data['history']:
-        if match.get('round') == gameweek:
-            return {
-                'points': match.get('total_points', 0),
-                'minutes': match.get('minutes', 0),
-                'goals_scored': match.get('goals_scored', 0),
-                'assists': match.get('assists', 0),
-                'clean_sheets': match.get('clean_sheets', 0),
-                'bonus': match.get('bonus', 0),
-                'yellow_cards': match.get('yellow_cards', 0),
-                'red_cards': match.get('red_cards', 0),
-                'saves': match.get('saves', 0),
-                'goals_conceded': match.get('goals_conceded', 0),
-                'own_goals': match.get('own_goals', 0),
-                'penalties_missed': match.get('penalties_missed', 0)
-            }
-    
-    return None
-
 def store_real_best11_data(gameweek, best11_data):
     """Store real best 11 team data"""
     conn = sqlite3.connect("epl_data.db")
@@ -657,7 +632,7 @@ def calculate_role_metrics(gameweek, best11_data):
     print(f"✅ Calculated role metrics for GW{gameweek}")
 
 if __name__ == "__main__":
-    generate_real_historical_data()
+    fetch_real_historical_data()
     
     # Display results
     conn = sqlite3.connect("epl_data.db")
